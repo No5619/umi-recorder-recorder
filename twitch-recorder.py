@@ -31,7 +31,7 @@ class TwitchRecorder:
 
         # user configuration
         self.username = config.username
-        self.quality = "best"
+        self.quality = config.quality
 
         # twitch configuration
         self.client_id = config.client_id
@@ -41,6 +41,9 @@ class TwitchRecorder:
         self.url = "https://api.twitch.tv/helix/streams"
         self.access_token = self.fetch_access_token()
 
+        """_summary_
+            從twitch_API獲得token
+        """
     def fetch_access_token(self):
         token_response = requests.post(self.token_url, timeout=15)
         token_response.raise_for_status()
@@ -49,7 +52,7 @@ class TwitchRecorder:
 
     def run(self):
         # path to recorded stream
-        recorded_path = os.path.join(self.root_path, "recorded", self.username)
+        recorded_path = os.path.join(self.root_path, "recorded", self.username) #join() 把path組合在一起
         # path to finished video, errors removed
         processed_path = os.path.join(self.root_path, "processed", self.username)
 
@@ -64,15 +67,23 @@ class TwitchRecorder:
             logging.warning("check interval should not be lower than 15 seconds")
             self.refresh = 15
             logging.info("system set check interval to 15 seconds")
-
+        
+        """
+            recorded_path = <root_path>/record/<username> 
+                          = ./umi_videos/record/umi_recorder
+            file = recorded_path裡面的文件、資料夾
+            
+            1. 遍歷 recorded_path 裡面的所有檔案(file)，如果recorded_path要被已存在要被附寫就告警
+            2. 遍歷 file 執行函式processed_filename(xxx,xxx)
+        """
         # fix videos from previous recording session
-        try:
-            video_list = [f for f in os.listdir(recorded_path) if os.path.isfile(os.path.join(recorded_path, f))]
+        try:                              #os.listdir => return 所有文件與資料夾  #如果file存在就放入video_list中
+            video_list = [file for file in os.listdir(recorded_path) if os.path.isfile(os.path.join(recorded_path, file))] 
             if len(video_list) > 0:
                 logging.info("processing previously recorded files")
-            for f in video_list:
-                recorded_filename = os.path.join(recorded_path, f)
-                processed_filename = os.path.join(processed_path, f)
+            for file in video_list:
+                recorded_filename = os.path.join(recorded_path, file)
+                processed_filename = os.path.join(processed_path, file)
                 self.process_recorded_file(recorded_filename, processed_filename)
         except Exception as e:
             logging.error(e)
@@ -82,9 +93,9 @@ class TwitchRecorder:
         self.loop_check(recorded_path, processed_path)
 
     def process_recorded_file(self, recorded_filename, processed_filename):
-        if self.disable_ffmpeg:
+        if self.disable_ffmpeg: #default為false
             logging.info("moving: %s", recorded_filename)
-            shutil.move(recorded_filename, processed_filename)
+            shutil.move(recorded_filename, processed_filename) #把檔案從recorded_filename移到processed_filename
         else:
             logging.info("fixing %s", recorded_filename)
             self.ffmpeg_copy_and_fix_errors(recorded_filename, processed_filename)
@@ -98,6 +109,8 @@ class TwitchRecorder:
         except Exception as e:
             logging.error(e)
 
+    # 確定user狀態，return status, info
+    # info = 從twitch_API得到的json
     def check_user(self):
         info = None
         status = TwitchResponseStatus.ERROR
@@ -119,10 +132,10 @@ class TwitchRecorder:
         return status, info
 
     def loop_check(self, recorded_path, processed_path):
-        while True:
-            status, info = self.check_user()
+        while True: 
+            status, info = self.check_user() # info = 從twitch_API得到的json
             if status == TwitchResponseStatus.NOT_FOUND:
-                logging.error("username not found, invalid username or typo")
+                logging.error("username not found, invalid username or type")
                 time.sleep(self.refresh)
             elif status == TwitchResponseStatus.ERROR:
                 logging.error("%s unexpected error. will try again in 5 minutes",
@@ -133,11 +146,11 @@ class TwitchRecorder:
                 time.sleep(self.refresh)
             elif status == TwitchResponseStatus.UNAUTHORIZED:
                 logging.info("unauthorized, will attempt to log back in immediately")
-                self.access_token = self.fetch_access_token()
+                self.access_token = self.fetch_access_token() #跟twitch_API拿token
             elif status == TwitchResponseStatus.ONLINE:
                 logging.info("%s online, stream recording in session", self.username)
 
-                channels = info["data"]
+                channels = info["data"] #抓取json內容
                 channel = next(iter(channels), None)
                 filename = self.username + " - " + datetime.datetime.now() \
                     .strftime("%Y-%m-%d %Hh%Mm%Ss") + " - " + channel.get("title") + ".mp4"
@@ -145,12 +158,12 @@ class TwitchRecorder:
                 # clean filename from unnecessary characters
                 filename = "".join(x for x in filename if x.isalnum() or x in [" ", "-", "_", "."])
 
-                recorded_filename = os.path.join(recorded_path, filename)
-                processed_filename = os.path.join(processed_path, filename)
-
+                recorded_filename = os.path.join(recorded_path, filename).replace(" ", "")
+                processed_filename = os.path.join(processed_path, filename).replace(" ", "")
+                
                 # start streamlink process
                 subprocess.call(
-                    ["streamlink", "--twitch-disable-ads", "twitch.tv/" + self.username, self.quality,
+                    ["py", "-m" ,"streamlink", "--twitch-disable-ads", "twitch.tv/" + self.username, self.quality,
                      "-o", recorded_filename])
 
                 logging.info("recording stream is done, processing video file")
