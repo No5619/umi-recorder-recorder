@@ -3,9 +3,10 @@
 - 去 https://dev.twitch.tv/console/apps 跟twitch申請client_id、client_secret
 
 - 請先新建config檔，程式才能順利執行:
+
 ```python
 # path to a folder where you want your VODs to be saved to
-root_path = r".\umi_videos"
+root_path = r"recorder/umi_videos"
 # name of the streamer you want to record by default
 username = "umimiowo"
 

@@ -72,5 +72,6 @@ fabric.properties
 
 #Pycharm
 .idea
-venv
-config.py
+recorder/config.py
+/recorder/twitch-recorder.log
+/.venv/
